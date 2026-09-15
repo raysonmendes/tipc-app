@@ -7,7 +7,8 @@ import { WorkSessionForm } from "../src/components/telemetry/WorkSessionForm";
 import { useRawNotifications } from "../src/hooks/useRawNotifications";
 import { useWorkSession } from "../src/hooks/useWorkSession";
 import { useNotificationPermission } from "../src/hooks/useNotificationPermission";
-import { NotificationPermissionModal } from "../src/components/telemetry/permissionModal/NotificationPermissionModal";
+import { NotificationPermissionModal } from "../src/components/permissionModal/NotificationPermissionModal";
+import { useCameraOdometer } from "../src/hooks/useCameraOdometer";
 
 export default function CurrentShiftRoute() {
   const theme = useTheme();
@@ -20,7 +21,10 @@ export default function CurrentShiftRoute() {
     requestSystemPermission,
   } = useNotificationPermission();
   const { count, copyAll } = useRawNotifications();
+  const { processOdometerImage } = useCameraOdometer();
+
   const [isCopying, setIsCopying] = useState(false);
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
 
   const handleCopy = async () => {
     setIsCopying(true);
