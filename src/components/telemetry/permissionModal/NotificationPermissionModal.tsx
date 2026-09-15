@@ -7,7 +7,11 @@ interface Props {
   onConfirm: () => void;
 }
 
-export function PermissionModal({ visible, onDismiss, onConfirm }: Props) {
+export function NotificationPermissionModal({
+  visible,
+  onDismiss,
+  onConfirm,
+}: Props) {
   return (
     <Portal>
       <Dialog visible={visible} onDismiss={onDismiss}>

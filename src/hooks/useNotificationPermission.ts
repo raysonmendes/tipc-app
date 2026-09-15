@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Alert } from "react-native";
+import { useState, useEffect, useCallback } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import RNNotificationListener from "react-native-notification-listener";
 
@@ -10,8 +10,8 @@ export function useNotificationPermission() {
   const [showPermissionModal, setShowPermissionModal] =
     useState<boolean>(false);
 
-  // Função para checar o status nativo no Android
-  const checkPermission = async (): Promise<boolean> => {
+  // Checa o status nativo no Android
+  const checkPermission = useCallback(async (): Promise<boolean> => {
     try {
       const status = await RNNotificationListener.getPermissionStatus();
       const isGranted = status === "authorized";
@@ -19,19 +19,18 @@ export function useNotificationPermission() {
       return isGranted;
     } catch (error) {
       console.error("Erro ao verificar permissão de notificação:", error);
+      setHasPermission(false);
       return false;
     }
-  };
+  }, []);
 
-  // Checagem no Momento 1: Abertura do App
+  // Monitora a abertura do app E o retorno das configurações do Android
   useEffect(() => {
     const initCheck = async () => {
       const isGranted = await checkPermission();
-
       if (!isGranted) {
         const hasPromptedBefore = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
         if (!hasPromptedBefore) {
-          // Primeira execução após instalação
           setShowPermissionModal(true);
           await AsyncStorage.setItem(FIRST_LAUNCH_KEY, "true");
         }
@@ -39,29 +38,42 @@ export function useNotificationPermission() {
     };
 
     initCheck();
-  }, []);
 
-  // Função disparada pelo botão Aceitar no Modal ou no Momento 2
+    // Re-checa a permissão sempre que o usuário voltar da tela de configurações do sistema
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState === "active") {
+          checkPermission();
+        }
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [checkPermission]);
+
+  // Ação ao clicar no botão de aceitar do modal
   const requestSystemPermission = async () => {
     setShowPermissionModal(false);
     try {
-      await RNNotificationListener.requestPermission();
-      // Re-verifica após o retorno do usuário da tela de configurações do Android
-      await checkPermission();
+      // Abre a tela nativa do Android para o usuário conceder a permissão
+      RNNotificationListener.requestPermission();
     } catch (error) {
       console.error("Erro ao solicitar permissão:", error);
     }
   };
 
-  // Checagem no Momento 2: Iniciar Turno (Retorna boolean para bloquear/liberar a ação)
+  // Validação ao clicar em "Iniciar Turno"
   const validateBeforeStartShift = async (): Promise<boolean> => {
     const isGranted = await checkPermission();
-    if (isGranted) {
-      return true;
-    } else {
+    if (!isGranted) {
+      // Exibe o modal para o usuário entender o motivo antes de ir para as configurações
       setShowPermissionModal(true);
       return false;
     }
+    return true;
   };
 
   return {
@@ -70,5 +82,6 @@ export function useNotificationPermission() {
     setShowPermissionModal,
     requestSystemPermission,
     validateBeforeStartShift,
+    checkPermission,
   };
 }

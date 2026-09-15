@@ -7,12 +7,18 @@ import { WorkSessionForm } from "../src/components/telemetry/WorkSessionForm";
 import { useRawNotifications } from "../src/hooks/useRawNotifications";
 import { useWorkSession } from "../src/hooks/useWorkSession";
 import { useNotificationPermission } from "../src/hooks/useNotificationPermission";
+import { NotificationPermissionModal } from "../src/components/telemetry/permissionModal/NotificationPermissionModal";
 
 export default function CurrentShiftRoute() {
   const theme = useTheme();
   const { activeSession, isLoading, startSession, endSession } =
     useWorkSession();
-  const { validateBeforeStartShift } = useNotificationPermission();
+  const {
+    validateBeforeStartShift,
+    showPermissionModal,
+    setShowPermissionModal,
+    requestSystemPermission,
+  } = useNotificationPermission();
   const { count, copyAll } = useRawNotifications();
   const [isCopying, setIsCopying] = useState(false);
 
@@ -29,8 +35,8 @@ export default function CurrentShiftRoute() {
   const handleStartSession = async (odoStart: number) => {
     try {
       const canProceed = await validateBeforeStartShift();
-      if (!canProceed)
-        throw new Error("The app needs permission to intercept notifications!");
+      if (!canProceed) return;
+      // throw new Error("The app needs permission to intercept notifications!");
 
       await startSession(odoStart);
       Alert.alert("Turno iniciado", `Odômetro inicial: ${odoStart} km.`);
@@ -100,6 +106,11 @@ export default function CurrentShiftRoute() {
           </Button>
         </Card.Actions>
       </Card>
+      <NotificationPermissionModal
+        visible={showPermissionModal}
+        onDismiss={() => setShowPermissionModal(false)}
+        onConfirm={requestSystemPermission}
+      />
     </ScrollView>
   );
 }
