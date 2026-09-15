@@ -1,17 +1,12 @@
-import { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { Button, Card, Text, TextInput, useTheme } from "react-native-paper";
+import React, { useState } from "react";
+import { StyleSheet, Alert } from "react-native";
+import { TextInput, Button, Card, useTheme } from "react-native-paper";
 
-import type { WorkSession } from "../../database";
-import {
-  calculateOperationalCost,
-  calculateTotalKm,
-  formatCurrency,
-  parseOdometer,
-} from "../../utils/costCalculator";
+import { OdometerCameraModal } from "./OdometerCameraModal";
+import { useCameraOdometer } from "../../hooks/useCameraOdometer";
 
 interface WorkSessionFormProps {
-  activeSession: WorkSession | null;
+  activeSession: any;
   onStart: (odoStart: number) => Promise<void>;
   onEnd: (odoEnd: number) => Promise<void>;
 }
@@ -22,123 +17,202 @@ export function WorkSessionForm({
   onEnd,
 }: WorkSessionFormProps) {
   const theme = useTheme();
-  const [startValue, setStartValue] = useState("");
-  const [endValue, setEndValue] = useState("");
-  const endOdometer = parseOdometer(endValue);
-  const totalKm =
-    activeSession && endOdometer !== null
-      ? calculateTotalKm(activeSession.odo_start, endOdometer)
-      : 0;
 
-  const submit = async () => {
-    if (!activeSession) {
-      const value = parseOdometer(startValue);
-      if (value === null) {
+  // Estados dos valores digitados/lidos
+  const [odoStartValue, setOdoStartValue] = useState("");
+  const [odoEndValue, setOdoEndValue] = useState("");
+
+  // Controle da Câmera
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
+  const [cameraTarget, setCameraTarget] = useState<"start" | "end">("start");
+
+  const { validateCameraPermission, processOdometerImage } =
+    useCameraOdometer();
+
+  // 1. Abrir câmera definindo o alvo (Início ou Fim)
+  const handleOpenCamera = async (target: "start" | "end") => {
+    const hasPermission = await validateCameraPermission();
+    if (hasPermission) {
+      setCameraTarget(target);
+      setIsCameraVisible(true);
+    }
+  };
+
+  // 2. Handler unificado para preencher o odômetro lido no campo correto
+  const handlePhotoCaptured = async (imageUri: string) => {
+    setIsCameraVisible(false);
+    setIsProcessingOcr(true);
+
+    try {
+      const detectedOdometer = await processOdometerImage(imageUri);
+
+      if (detectedOdometer !== null) {
+        if (cameraTarget === "start") {
+          setOdoStartValue(detectedOdometer.toString());
+        } else {
+          setOdoEndValue(detectedOdometer.toString());
+        }
+
         Alert.alert(
-          "Odômetro inválido",
-          "Informe um valor numérico igual ou maior que zero.",
+          "Odômetro Lido!",
+          `Valor detectado: ${detectedOdometer} km. Confirme o valor antes de prosseguir.`,
         );
-        return;
+      } else {
+        Alert.alert(
+          "Leitura não identificada",
+          "Não identificamos um número limpo no painel. Digite o valor manualmente.",
+        );
       }
-      await onStart(value);
-      setStartValue("");
+    } catch (error) {
+      console.error("Erro no OCR da imagem:", error);
+      Alert.alert("Erro", "Falha ao processar a imagem.");
+    } finally {
+      setIsProcessingOcr(false);
+    }
+  };
+
+  // 3. Submeter Início do Turno
+  const handleSubmitStart = async () => {
+    const numericOdo = parseInt(odoStartValue, 10);
+    if (isNaN(numericOdo) || numericOdo <= 0) {
+      Alert.alert("Valor inválido", "Informe um odômetro inicial válido.");
       return;
     }
-    if (endOdometer === null || endOdometer < activeSession.odo_start) {
+
+    try {
+      await onStart(numericOdo);
+      setOdoStartValue("");
+    } catch (error) {
+      console.error("Erro ao iniciar turno:", error);
+    }
+  };
+
+  // 4. Submeter Fim do Turno
+  const handleSubmitEnd = async () => {
+    const numericOdo = parseInt(odoEndValue, 10);
+    const initialOdo = activeSession?.odoStart ?? activeSession?.odo_start ?? 0;
+
+    if (isNaN(numericOdo) || numericOdo < initialOdo) {
       Alert.alert(
-        "Odômetro inválido",
-        "O odômetro final deve ser maior ou igual ao odômetro inicial.",
+        "Valor inválido",
+        `O odômetro final (${numericOdo} km) deve ser maior ou igual ao inicial (${initialOdo} km).`,
       );
       return;
     }
-    await onEnd(endOdometer);
-    setEndValue("");
+
+    try {
+      await onEnd(numericOdo);
+      setOdoEndValue("");
+    } catch (error) {
+      console.error("Erro ao finalizar turno:", error);
+    }
   };
 
-  return (
-    <Card mode="elevated" style={styles.card}>
-      <Card.Title
-        title={activeSession ? "Encerrar turno" : "Iniciar turno"}
-        subtitle={
-          activeSession
-            ? "Informe o odômetro final"
-            : "Registre o ponto de partida"
-        }
-      />
-      <Card.Content>
-        {!activeSession ? (
-          <TextInput
-            label="Odômetro inicial"
-            value={startValue}
-            onChangeText={setStartValue}
-            mode="outlined"
-            keyboardType="decimal-pad"
-            placeholder="Ex.: 12540,8"
-            left={<TextInput.Icon icon="speedometer" />}
+  // Renderização 1: Turno em Andamento (Formulário de Encerramento)
+  if (activeSession) {
+    const initialOdo = activeSession?.odoStart ?? activeSession?.odo_start ?? 0;
+
+    return (
+      <>
+        <Card style={styles.card}>
+          <Card.Title
+            title="Turno em andamento"
+            subtitle={`Iniciado em: ${initialOdo} km`}
           />
-        ) : (
-          <>
-            <Text variant="labelMedium" style={styles.label}>
-              Odômetro inicial
-            </Text>
-            <Text variant="titleMedium" style={styles.startValue}>
-              {activeSession.odo_start.toFixed(1)} km
-            </Text>
+          <Card.Content style={styles.content}>
             <TextInput
-              label="Odômetro final"
-              value={endValue}
-              onChangeText={setEndValue}
+              label="Odômetro Final (km)"
+              value={odoEndValue}
+              onChangeText={setOdoEndValue}
+              keyboardType="numeric"
               mode="outlined"
-              keyboardType="decimal-pad"
-              placeholder="Ex.: 12620,3"
-              left={<TextInput.Icon icon="speedometer" />}
+              disabled={isProcessingOcr}
+              right={
+                <TextInput.Icon
+                  icon={
+                    isProcessingOcr && cameraTarget === "end"
+                      ? "loading"
+                      : "camera"
+                  }
+                  onPress={() => handleOpenCamera("end")}
+                  disabled={isProcessingOcr}
+                />
+              }
             />
-            <Card
+
+            <Button
               mode="contained"
-              style={[
-                styles.costCard,
-                { backgroundColor: theme.colors.tertiaryContainer },
-              ]}
+              buttonColor={theme.colors.error}
+              onPress={handleSubmitEnd}
+              disabled={!odoEndValue || isProcessingOcr}
+              style={styles.button}
             >
-              <Card.Content style={styles.costContent}>
-                <View>
-                  <Text variant="labelLarge">Custo operacional</Text>
-                  <Text variant="bodySmall">
-                    CPK R$ 0,35 x {totalKm.toFixed(1)} km
-                  </Text>
-                </View>
-                <Text
-                  variant="titleLarge"
-                  style={{ color: theme.colors.tertiary, fontWeight: "700" }}
-                >
-                  {formatCurrency(calculateOperationalCost(totalKm))}
-                </Text>
-              </Card.Content>
-            </Card>
-          </>
-        )}
-      </Card.Content>
-      <Card.Actions>
-        <Button
-          mode="contained"
-          icon={activeSession ? "stop" : "play"}
-          onPress={submit}
-        >
-          {activeSession ? "Encerrar Turno" : "Iniciar Turno"}
-        </Button>
-      </Card.Actions>
-    </Card>
+              Finalizar Turno
+            </Button>
+          </Card.Content>
+        </Card>
+
+        <OdometerCameraModal
+          visible={isCameraVisible}
+          onClose={() => setIsCameraVisible(false)}
+          onPictureTaken={handlePhotoCaptured}
+        />
+      </>
+    );
+  }
+
+  // Renderização 2: Sem Turno Ativo (Formulário de Abertura)
+  return (
+    <>
+      <Card style={styles.card}>
+        <Card.Title
+          title="Iniciar novo turno"
+          subtitle="Informe o odômetro inicial da moto"
+        />
+        <Card.Content style={styles.content}>
+          <TextInput
+            label="Odômetro Inicial (km)"
+            value={odoStartValue}
+            onChangeText={setOdoStartValue}
+            keyboardType="numeric"
+            mode="outlined"
+            disabled={isProcessingOcr}
+            right={
+              <TextInput.Icon
+                icon={
+                  isProcessingOcr && cameraTarget === "start"
+                    ? "loading"
+                    : "camera"
+                }
+                onPress={() => handleOpenCamera("start")}
+                disabled={isProcessingOcr}
+              />
+            }
+          />
+
+          <Button
+            mode="contained"
+            onPress={handleSubmitStart}
+            style={styles.button}
+            disabled={!odoStartValue || isProcessingOcr}
+          >
+            Iniciar Turno
+          </Button>
+        </Card.Content>
+      </Card>
+
+      <OdometerCameraModal
+        visible={isCameraVisible}
+        onClose={() => setIsCameraVisible(false)}
+        onPictureTaken={handlePhotoCaptured}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   card: { borderRadius: 12 },
-  label: { color: "#5f6b73", marginBottom: 4 },
-  startValue: { marginBottom: 12 },
-  costCard: { marginTop: 16 },
-  costContent: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
+  content: { gap: 16 },
+  button: { marginTop: 8 },
 });
