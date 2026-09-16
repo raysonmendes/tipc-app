@@ -86,6 +86,19 @@ function AppContent() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="debug"
+          options={{
+            title: "Debug",
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons
+                name="bug-outline"
+                color={color}
+                size={size}
+              />
+            ),
+          }}
+        />
       </Tabs>
     </>
   );
