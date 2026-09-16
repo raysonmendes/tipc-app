@@ -16,7 +16,15 @@ export function RawNotificationsList({
   const theme = useTheme();
   if (notifications.length === 0)
     return (
-      <Text style={styles.empty}>Nenhuma notificação bruta armazenada.</Text>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text style={styles.empty}>Nenhuma notificação bruta armazenada.</Text>
+      </View>
     );
   return (
     <View style={styles.list}>

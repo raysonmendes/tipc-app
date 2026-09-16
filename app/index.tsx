@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Card, Text, useTheme } from "react-native-paper";
 
@@ -9,22 +9,30 @@ import { useWorkSession } from "../src/hooks/useWorkSession";
 import { useNotificationPermission } from "../src/hooks/useNotificationPermission";
 import { NotificationPermissionModal } from "../src/components/permissionModal/NotificationPermissionModal";
 import { useCameraOdometer } from "../src/hooks/useCameraOdometer";
+import { useFocusEffect } from "expo-router";
 
 export default function CurrentShiftRoute() {
   const theme = useTheme();
-  const { activeSession, isLoading, startSession, endSession } =
-    useWorkSession();
+  const {
+    activeSession,
+    startSession,
+    endSession,
+    refresh: refreshSession,
+    isLoading,
+  } = useWorkSession();
   const {
     validateBeforeStartShift,
     showPermissionModal,
     setShowPermissionModal,
     requestSystemPermission,
   } = useNotificationPermission();
-  const { count, copyAll } = useRawNotifications();
-  const { processOdometerImage } = useCameraOdometer();
+  const {
+    count,
+    copyAll,
+    refresh: refreshNotifications,
+  } = useRawNotifications();
 
   const [isCopying, setIsCopying] = useState(false);
-  const [isCameraVisible, setIsCameraVisible] = useState(false);
 
   const handleCopy = async () => {
     setIsCopying(true);
@@ -49,6 +57,13 @@ export default function CurrentShiftRoute() {
       Alert.alert("Erro", "Não foi possível iniciar o turno.");
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSession();
+      refreshNotifications();
+    }, [refreshSession, refreshNotifications]),
+  );
 
   if (isLoading)
     return (
