@@ -19,7 +19,17 @@ function formatDate(value: string): string {
 export function WorkSessionsList({ sessions }: WorkSessionsListProps) {
   const theme = useTheme();
   if (sessions.length === 0)
-    return <Text style={styles.empty}>Nenhum turno encerrado ainda.</Text>;
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text style={styles.empty}>Nenhum turno encerrado ainda.</Text>
+      </View>
+    );
   return (
     <View style={styles.list}>
       {sessions.map((session) => (
