@@ -12,10 +12,20 @@ export async function initializeDatabase(
 ): Promise<void> {
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 3000;
 
     CREATE TABLE IF NOT EXISTS raw_notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payload_hash TEXT UNIQUE,
       full_payload_json TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS debug_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tag TEXT NOT NULL,
+      message TEXT NOT NULL,
+      raw_notification TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -32,6 +42,13 @@ export async function initializeDatabase(
   `);
 }
 
+export interface DebugLog {
+  id: number;
+  tag: string;
+  message: string;
+  raw_notification: string;
+  created_at: string;
+}
 export interface WorkSession {
   id: number;
   odo_start: number;
@@ -43,6 +60,7 @@ export interface WorkSession {
 
 export interface RawNotification {
   id: number;
+  payload_hash: string;
   full_payload_json: string;
   created_at: string;
 }
