@@ -3,13 +3,14 @@ import { useCallback, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Card, Text, useTheme } from "react-native-paper";
 
-import { WorkSessionForm } from "../src/components/telemetry/WorkSessionForm";
-import { useRawNotifications } from "../src/hooks/useRawNotifications";
-import { useWorkSession } from "../src/hooks/useWorkSession";
-import { useNotificationPermission } from "../src/hooks/useNotificationPermission";
-import { NotificationPermissionModal } from "../src/components/permissionModal/NotificationPermissionModal";
-import { useCameraOdometer } from "../src/hooks/useCameraOdometer";
+import { useWorkSession } from "../src/features/sessions/hooks/useWorkSession";
+import { useNotificationPermission } from "../src/features/notification/hooks/useNotificationPermission";
+import { NotificationPermissionModal } from "../src/features/notification/components/NotificationPermissionModal";
 import { useFocusEffect } from "expo-router";
+import { useRawNotifications } from "../src/features/notification/hooks/useRawNotifications";
+import { WorkSessionForm } from "@/features/sessions/components/WorkSessionForm";
+import { inputMasks } from "@/shared/utils/inputMasks";
+import { numberFormatter } from "@/shared/utils/numberFormatter";
 
 export default function CurrentShiftRoute() {
   const theme = useTheme();
@@ -48,13 +49,15 @@ export default function CurrentShiftRoute() {
     try {
       const canProceed = await validateBeforeStartShift();
       if (!canProceed) return;
-      // throw new Error("The app needs permission to intercept notifications!");
 
       await startSession(odoStart);
-      Alert.alert("Turno iniciado", `Odômetro inicial: ${odoStart} km.`);
-    } catch (error) {
+      Alert.alert(
+        "Turno iniciado",
+        `Odômetro inicial: ${numberFormatter.maskText(odoStart)} km.`,
+      );
+    } catch (error: any) {
       console.error(error);
-      Alert.alert("Erro", "Não foi possível iniciar o turno.");
+      Alert.alert("Erro", "Não foi possível iniciar o turno.", error?.message);
     }
   };
 

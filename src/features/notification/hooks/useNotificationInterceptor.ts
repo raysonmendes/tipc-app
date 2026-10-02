@@ -2,13 +2,12 @@ import { useEffect } from "react";
 import { Alert, DeviceEventEmitter } from "react-native";
 import RNNotificationListener from "react-native-notification-listener";
 import { useSQLiteContext } from "expo-sqlite";
+import { getDatabase } from "@/database";
 
 // Pacote da 99 Motorista (caso queira filtrar)
 const TARGET_PACKAGE = "com.app99.driver";
 
 export function useNotificationInterceptor() {
-  const database = useSQLiteContext();
-
   useEffect(() => {
     let isMounted = true;
 
@@ -37,6 +36,7 @@ export function useNotificationInterceptor() {
     const subscription = DeviceEventEmitter.addListener(
       "react-native-notification-listener-received",
       async (event: any) => {
+        const database = await getDatabase();
         //dando um log aqui
         Alert.alert("Debug", "Evento recebido em FOREGROUND!");
         if (!isMounted || !event) return;
@@ -87,5 +87,5 @@ export function useNotificationInterceptor() {
       isMounted = false;
       subscription.remove();
     };
-  }, [database]);
+  }, []);
 }

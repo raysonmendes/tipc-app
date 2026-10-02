@@ -3,12 +3,21 @@ import { useFocusEffect } from "expo-router";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
 import RNNotificationListener from "react-native-notification-listener";
-import { Button, Card, Chip, Text, useTheme } from "react-native-paper";
+import {
+  Button,
+  Card,
+  Chip,
+  Divider,
+  Text,
+  useTheme,
+} from "react-native-paper";
+import { getDatabase } from "@/database";
 
 interface DebugLogRow {
   id: number;
   tag: string;
   message: string;
+  full_payload_json: string;
   created_at: string;
 }
 
@@ -20,7 +29,6 @@ interface RawNotifRow {
 
 export default function DebugRoute() {
   const theme = useTheme();
-  const database = useSQLiteContext();
   const [logs, setLogs] = useState<DebugLogRow[]>([]);
   const [notifications, setNotifications] = useState<RawNotifRow[]>([]);
   const [permissionStatus, setPermissionStatus] =
@@ -29,6 +37,7 @@ export default function DebugRoute() {
 
   const refresh = useCallback(async () => {
     try {
+      const database = await getDatabase();
       const [debugRows, notifRows, status] = await Promise.all([
         database.getAllAsync<DebugLogRow>(
           "SELECT * FROM debug_logs ORDER BY id DESC LIMIT 50;",
@@ -46,7 +55,7 @@ export default function DebugRoute() {
     } finally {
       setIsLoading(false);
     }
-  }, [database]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,6 +65,7 @@ export default function DebugRoute() {
 
   const handleClearLogs = async () => {
     try {
+      const database = await getDatabase();
       await database.runAsync("DELETE FROM debug_logs;");
       await database.runAsync("DELETE FROM raw_notifications;");
       await refresh();
@@ -158,6 +168,8 @@ export default function DebugRoute() {
                   [{log.tag}] {log.created_at}
                 </Text>
                 <Text variant="bodyMedium">{log.message}</Text>
+                <Divider />
+                <Text variant="bodyMedium"> {log.full_payload_json}</Text>
               </View>
             ))
           )}

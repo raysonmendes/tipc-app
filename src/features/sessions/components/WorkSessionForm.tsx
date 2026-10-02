@@ -1,9 +1,10 @@
+import { OdometerCameraModal } from "@/components/telemetry/OdometerCameraModal";
+import { useCameraOdometer } from "@/hooks/useCameraOdometer";
+import { inputMasks } from "@/shared/utils/inputMasks";
+import { numberFormatter } from "@/shared/utils/numberFormatter";
 import React, { useState } from "react";
-import { StyleSheet, Alert } from "react-native";
+import { StyleSheet, Alert, ToastAndroid } from "react-native";
 import { TextInput, Button, Card, useTheme } from "react-native-paper";
-
-import { OdometerCameraModal } from "./OdometerCameraModal";
-import { useCameraOdometer } from "../../hooks/useCameraOdometer";
 
 interface WorkSessionFormProps {
   activeSession: any;
@@ -19,8 +20,14 @@ export function WorkSessionForm({
   const theme = useTheme();
 
   // Estados dos valores digitados/lidos
-  const [odoStartValue, setOdoStartValue] = useState("");
-  const [odoEndValue, setOdoEndValue] = useState("");
+  const [odoStartValueToInput, setOdoStartValueToInput] = useState("");
+  const [odoEndValueToInput, setOdoEndValueToInput] = useState("");
+  const [odoStartValueToDatabase, setOdoStartValueToDatabase] = useState<
+    number | undefined
+  >(undefined);
+  const [odoEndValueToDatabase, setOdoEndValueToDatabase] = useState<
+    number | undefined
+  >(undefined);
 
   // Controle da Câmera
   const [isCameraVisible, setIsCameraVisible] = useState(false);
@@ -48,10 +55,11 @@ export function WorkSessionForm({
       const detectedOdometer = await processOdometerImage(imageUri);
 
       if (detectedOdometer !== null) {
+        const detectedOdometerStr = numberFormatter.maskText(detectedOdometer);
         if (cameraTarget === "start") {
-          setOdoStartValue(detectedOdometer.toString());
+          setOdoStartValueToInput(detectedOdometerStr);
         } else {
-          setOdoEndValue(detectedOdometer.toString());
+          setOdoEndValueToInput(detectedOdometerStr);
         }
 
         Alert.alert(
@@ -72,39 +80,64 @@ export function WorkSessionForm({
     }
   };
 
+  const handleChangeText = (text: string, target: "start" | "end") => {
+    const masked = inputMasks.odometer(text);
+    const numeric = numberFormatter.parseToNumber(text);
+    if (target === "start") {
+      setOdoStartValueToInput(masked);
+      setOdoStartValueToDatabase(numeric);
+    } else {
+      setOdoEndValueToInput(masked);
+      setOdoEndValueToDatabase(numeric);
+    }
+  };
+
   // 3. Submeter Início do Turno
   const handleSubmitStart = async () => {
-    const numericOdo = parseInt(odoStartValue, 10);
-    if (isNaN(numericOdo) || numericOdo <= 0) {
+    console.log(
+      `Valor incial cru: ${odoStartValueToInput} e valor inicial formatado para número: ${odoStartValueToDatabase}`,
+    );
+    if (!odoStartValueToDatabase || odoStartValueToDatabase <= 0) {
       Alert.alert("Valor inválido", "Informe um odômetro inicial válido.");
       return;
     }
 
     try {
-      await onStart(numericOdo);
-      setOdoStartValue("");
+      await onStart(odoStartValueToDatabase);
+      // setOdoStartValueToInput("");
+      // setOdoStartValueToDatabase(undefined);
     } catch (error) {
+      if (error instanceof Error) {
+        Alert.alert("Falha ao iniciar o turno: ", `Error: ${error.message}`);
+      }
       console.error("Erro ao iniciar turno:", error);
     }
   };
 
   // 4. Submeter Fim do Turno
   const handleSubmitEnd = async () => {
-    const numericOdo = parseInt(odoEndValue, 10);
-    const initialOdo = activeSession?.odoStart ?? activeSession?.odo_start ?? 0;
-
-    if (isNaN(numericOdo) || numericOdo < initialOdo) {
+    if (
+      !odoEndValueToDatabase ||
+      !odoStartValueToDatabase ||
+      odoEndValueToDatabase < odoStartValueToDatabase
+    ) {
       Alert.alert(
         "Valor inválido",
-        `O odômetro final (${numericOdo} km) deve ser maior ou igual ao inicial (${initialOdo} km).`,
+        `O odômetro final (${odoStartValueToInput} km) deve ser maior ou igual ao inicial (${odoStartValueToInput} km).`,
       );
       return;
     }
 
     try {
-      await onEnd(numericOdo);
-      setOdoEndValue("");
+      await onEnd(odoEndValueToDatabase);
+      setOdoStartValueToInput("");
+      setOdoStartValueToDatabase(undefined);
+      setOdoEndValueToInput("");
+      setOdoEndValueToDatabase(undefined);
     } catch (error) {
+      if (error instanceof Error) {
+        Alert.alert("Falha ao finalizar o turno: ", `Error: ${error.message}`);
+      }
       console.error("Erro ao finalizar turno:", error);
     }
   };
@@ -112,19 +145,20 @@ export function WorkSessionForm({
   // Renderização 1: Turno em Andamento (Formulário de Encerramento)
   if (activeSession) {
     const initialOdo = activeSession?.odoStart ?? activeSession?.odo_start ?? 0;
+    const initialOdoMasked = numberFormatter.maskText(initialOdo);
 
     return (
       <>
         <Card style={styles.card}>
           <Card.Title
             title="Turno em andamento"
-            subtitle={`Iniciado em: ${initialOdo} km`}
+            subtitle={`Iniciado em: ${initialOdoMasked} km`}
           />
           <Card.Content style={styles.content}>
             <TextInput
               label="Odômetro Final (km)"
-              value={odoEndValue}
-              onChangeText={setOdoEndValue}
+              value={odoEndValueToInput}
+              onChangeText={(v) => handleChangeText(v, "end")}
               keyboardType="numeric"
               mode="outlined"
               disabled={isProcessingOcr}
@@ -145,7 +179,7 @@ export function WorkSessionForm({
               mode="contained"
               buttonColor={theme.colors.error}
               onPress={handleSubmitEnd}
-              disabled={!odoEndValue || isProcessingOcr}
+              disabled={!odoEndValueToInput || isProcessingOcr}
               style={styles.button}
             >
               Finalizar Turno
@@ -173,8 +207,8 @@ export function WorkSessionForm({
         <Card.Content style={styles.content}>
           <TextInput
             label="Odômetro Inicial (km)"
-            value={odoStartValue}
-            onChangeText={setOdoStartValue}
+            value={odoStartValueToInput}
+            onChangeText={(v) => handleChangeText(v, "start")}
             keyboardType="numeric"
             mode="outlined"
             disabled={isProcessingOcr}
@@ -195,7 +229,7 @@ export function WorkSessionForm({
             mode="contained"
             onPress={handleSubmitStart}
             style={styles.button}
-            disabled={!odoStartValue || isProcessingOcr}
+            disabled={!odoStartValueToInput || isProcessingOcr}
           >
             Iniciar Turno
           </Button>

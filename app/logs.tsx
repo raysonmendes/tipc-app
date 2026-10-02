@@ -1,10 +1,9 @@
 import { Alert, ScrollView, StyleSheet } from "react-native";
 
-import { RawNotificationsList } from "../src/components/telemetry/RawNotificationsList";
-import { useRawNotifications } from "../src/hooks/useRawNotifications";
+import { RawNotificationsList } from "../src/features/notification/components/RawNotificationsList";
+import { useRawNotifications } from "../src/features/notification/hooks/useRawNotifications";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
-import { useWorkSession } from "../src/hooks/useWorkSession";
 
 export default function LogsRoute() {
   const { notifications, copyNotification, refresh } = useRawNotifications();

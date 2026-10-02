@@ -1,7 +1,13 @@
 export const COST_PER_KM = 0.35;
 
 export function calculateTotalKm(odoStart: number, odoEnd: number): number {
-  return Math.max(0, odoEnd - odoStart);
+  const rawTotal = odoEnd - odoStart;
+
+  // Evita valores negativos antes de arredondar
+  const safeTotal = Math.max(0, rawTotal);
+
+  // .toFixed(3) fixa a precisão e parseFloat remove zeros desnecessários no final
+  return parseFloat(safeTotal.toFixed(3));
 }
 
 export function calculateOperationalCost(totalKm: number): number {
