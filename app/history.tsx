@@ -1,9 +1,9 @@
 import { ScrollView, StyleSheet } from "react-native";
 
-import { WorkSessionsList } from "../src/components/telemetry/WorkSessionsList";
-import { useWorkSession } from "../src/hooks/useWorkSession";
+import { useWorkSession } from "../src/features/sessions/hooks/useWorkSession";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
+import { WorkSessionsList } from "@/features/sessions/components/WorkSessionsList";
 
 export default function HistoryRoute() {
   const { sessions, refresh } = useWorkSession();

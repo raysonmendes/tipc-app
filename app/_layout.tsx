@@ -1,15 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { SQLiteProvider } from "expo-sqlite";
 import { StatusBar } from "expo-status-bar";
 import { MD3LightTheme, PaperProvider } from "react-native-paper";
 
-import { DATABASE_NAME, initializeDatabase } from "../src/database";
-import { useNotificationInterceptor } from "../src/hooks/useNotificationInterceptor"; // Importhook
-
 import { AppRegistry } from "react-native";
 import { RNAndroidNotificationListenerHeadlessJsName } from "react-native-notification-listener";
-import { headlessNotificationListener } from "../src/services/notificationTask";
+import { headlessNotificationListener } from "../src/features/notification/tasks/notificationHeadless.task";
 
 // ✅ Registra a task corretamente com o nome exportado pela biblioteca
 AppRegistry.registerHeadlessTask(
@@ -36,7 +32,7 @@ const theme = {
 // Componente interno para ativar o listener dentro do contexto do SQLite
 function AppContent() {
   // Ativa o leitor global de notificações
-  useNotificationInterceptor();
+  // useNotificationInterceptor();
 
   return (
     <>
@@ -107,9 +103,7 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <PaperProvider theme={theme}>
-      <SQLiteProvider databaseName={DATABASE_NAME} onInit={initializeDatabase}>
-        <AppContent />
-      </SQLiteProvider>
+      <AppContent />
     </PaperProvider>
   );
 }
