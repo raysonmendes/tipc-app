@@ -1,45 +1,54 @@
+// src/database/index.ts
 import * as SQLite from "expo-sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
+import { NOTIFICATION_SCHEMA } from "@/features/notification/database/notification.database";
+import { SESSION_SCHEMA } from "@/features/sessions/database/session.database";
 
 export const DATABASE_NAME = "telemetria_raw.db";
 
-export function openDatabaseAsync(): Promise<SQLiteDatabase> {
-  return SQLite.openDatabaseAsync(DATABASE_NAME);
-}
+let dbInstance: SQLiteDatabase | null = null;
+let isInitializing = DATABASE_NAME as unknown as Promise<SQLiteDatabase> | null;
 
-export async function initializeDatabase(
-  database: SQLiteDatabase,
-): Promise<void> {
-  await database.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 3000;
+/**
+ * Retorna a instância única do banco de dados de forma thread-safe e resiliente.
+ * Impede que múltiplas chamadas simultâneas (ex: troca de tela + notificação) abram instâncias concorrentes.
+ */
+export async function getDatabase(): Promise<SQLiteDatabase> {
+  if (dbInstance) {
+    try {
+      // Teste rápido para checar se a ponte nativa continua viva
+      await dbInstance.getFirstAsync("SELECT 1");
+      return dbInstance;
+    } catch {
+      dbInstance = null; // A conexão morreu, precisamos reabrir
+    }
+  }
 
-    CREATE TABLE IF NOT EXISTS raw_notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      payload_hash TEXT UNIQUE,
-      full_payload_json TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+  // Se já existe uma inicialização em curso, aguarda ela terminar para evitar race conditions
+  if (isInitializing && isInitializing !== (DATABASE_NAME as unknown)) {
+    return await isInitializing;
+  }
 
-    CREATE TABLE IF NOT EXISTS debug_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tag TEXT NOT NULL,
-      message TEXT NOT NULL,
-      raw_notification TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+  isInitializing = (async () => {
+    try {
+      const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
 
-    CREATE TABLE IF NOT EXISTS work_sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      end_time TIMESTAMP,
-      odo_start REAL NOT NULL,
-      odo_end REAL,
-      total_km REAL,
-      total_cost REAL,
-      status TEXT DEFAULT 'ACTIVE'
-    );
-  `);
+      await db.execAsync(`
+        PRAGMA journal_mode = WAL;
+        PRAGMA busy_timeout = 5000;
+      `);
+
+      await db.execAsync(NOTIFICATION_SCHEMA);
+      await db.execAsync(SESSION_SCHEMA);
+
+      dbInstance = db;
+      return db;
+    } finally {
+      isInitializing = null;
+    }
+  })();
+
+  return await isInitializing;
 }
 
 export interface DebugLog {
@@ -47,20 +56,5 @@ export interface DebugLog {
   tag: string;
   message: string;
   raw_notification: string;
-  created_at: string;
-}
-export interface WorkSession {
-  id: number;
-  odo_start: number;
-  odo_end: number | null;
-  total_km: number | null;
-  total_cost: number | null;
-  status: string;
-}
-
-export interface RawNotification {
-  id: number;
-  payload_hash: string;
-  full_payload_json: string;
   created_at: string;
 }
